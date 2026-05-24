@@ -11,7 +11,7 @@ struct UploadModalView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 uploadHero
                 uploadArea
                 statusView
@@ -24,9 +24,7 @@ struct UploadModalView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Close") { dismiss() }
                 }
             }
             .fileImporter(
@@ -60,12 +58,12 @@ struct UploadModalView: View {
         VStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(Color.ragPrimary.opacity(0.18))
-                    .frame(width: 84, height: 84)
-                    .blur(radius: 10)
+                    .fill(Color.ragPrimary.opacity(0.14))
+                    .frame(width: 80, height: 80)
+                    .blur(radius: 8)
 
                 Image(systemName: "doc.text.viewfinder")
-                    .font(.system(size: 36, weight: .semibold))
+                    .font(.system(size: 32, weight: .medium))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.ragPrimary, Color.ragSecondary],
@@ -77,15 +75,15 @@ struct UploadModalView: View {
             }
 
             Text("Index a PDF")
-                .font(.title2.weight(.bold))
+                .font(.title3.weight(.bold))
 
             Text("The document becomes available to the chat after ingestion finishes.")
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 20)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 4)
     }
 
     private var uploadArea: some View {
@@ -94,32 +92,32 @@ struct UploadModalView: View {
         } label: {
             HStack(spacing: 14) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.ragPrimary.opacity(0.12))
-                        .frame(width: 58, height: 58)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.ragPrimary.opacity(0.1))
+                        .frame(width: 52, height: 52)
 
                     Image(systemName: uploadAreaIconName)
-                        .font(.title2.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(uploadAreaIconColor)
                         .contentTransition(.symbolEffect(.replace))
                 }
 
                 switch viewModel.status {
                 case .ready(let filename, let fileSize):
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(filename)
-                            .font(.body.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
                             .lineLimit(2)
                         Text(fileSize)
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 default:
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Select a PDF")
-                            .font(.body.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
                         Text("PDF, up to 50 MB")
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -130,18 +128,18 @@ struct UploadModalView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, minHeight: 92)
-            .padding(16)
-            .glassCard(cornerRadius: 22, material: .regular, tint: Color.ragPrimary)
+            .frame(maxWidth: .infinity, minHeight: 84)
+            .padding(14)
+            .glassCard(cornerRadius: 20, material: .regular, tint: Color.ragPrimary.opacity(0.05))
             .overlay {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(
-                        Color.ragPrimary.opacity(0.55),
-                        style: StrokeStyle(lineWidth: 1.5, dash: viewModel.selectedFileURL == nil ? [8, 6] : [])
+                        Color.ragPrimary.opacity(0.4),
+                        style: StrokeStyle(lineWidth: 1.2, dash: viewModel.selectedFileURL == nil ? [6, 5] : [])
                     )
             }
             .scaleEffect(isUploadAreaHighlighted ? 0.98 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isUploadAreaHighlighted)
+            .animation(.snappy(duration: 0.25), value: isUploadAreaHighlighted)
         }
         .buttonStyle(.plain)
         .disabled(viewModel.status.isUploading)
@@ -159,35 +157,34 @@ struct UploadModalView: View {
         case .idle, .ready:
             EmptyView()
         case .uploading(let progress):
-            HStack(spacing: 14) {
+            HStack(spacing: 12) {
                 UploadProgressRing(progress: progress)
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Uploading and indexing")
-                        .font(.body.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                     Text("\(Int(progress * 100))% complete")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-
                 Spacer()
             }
-            .padding(14)
-            .glassCard(cornerRadius: 18, material: .ultraThin, tint: Color.ragSecondary)
+            .padding(12)
+            .glassCard(cornerRadius: 16, material: .ultraThin, tint: Color.ragSecondary.opacity(0.05))
         case .success(let message):
             Label(message, systemImage: "checkmark.circle.fill")
-                .font(.body)
+                .font(.subheadline)
                 .foregroundStyle(.green)
-                .padding(14)
+                .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .glassCard(cornerRadius: 18, material: .ultraThin, tint: .green)
+                .glassCard(cornerRadius: 16, material: .ultraThin, tint: .green.opacity(0.15))
         case .error(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
-                .font(.body)
+                .font(.subheadline)
                 .foregroundStyle(.red)
-                .padding(14)
+                .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .glassCard(cornerRadius: 18, material: .ultraThin, tint: .red)
+                .glassCard(cornerRadius: 16, material: .ultraThin, tint: .red.opacity(0.15))
         }
     }
 
@@ -201,13 +198,13 @@ struct UploadModalView: View {
                 }
             }
         } label: {
-            HStack {
+            HStack(spacing: 8) {
                 if viewModel.status.isUploading {
                     ProgressView()
                         .tint(.white)
                 }
                 Text(viewModel.status.isUploading ? "Uploading" : "Upload")
-                    .font(.headline)
+                    .font(.subheadline.weight(.bold))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
@@ -217,10 +214,10 @@ struct UploadModalView: View {
         .background(
             canUpload
                 ? LinearGradient(colors: [Color.ragSecondary, Color.ragPrimary], startPoint: .topLeading, endPoint: .bottomTrailing)
-                : LinearGradient(colors: [Color.secondary.opacity(0.5), Color.secondary.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                : LinearGradient(colors: [Color.secondary.opacity(0.4), Color.secondary.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
-        .shadow(color: canUpload ? Color.ragSecondary.opacity(0.32) : .clear, radius: 14, x: 0, y: 8)
+        .shadow(color: canUpload ? Color.ragSecondary.opacity(0.25) : .clear, radius: 10, x: 0, y: 6)
         .disabled(!canUpload)
         .accessibilityLabel("Upload selected document")
     }
@@ -231,38 +228,31 @@ struct UploadModalView: View {
 
     private var uploadAreaIconName: String {
         switch viewModel.status {
-        case .ready, .success:
-            "checkmark.circle.fill"
-        case .error:
-            "exclamationmark.triangle.fill"
-        case .uploading:
-            "arrow.triangle.2.circlepath"
-        case .idle:
-            "doc.badge.plus"
+        case .ready, .success: "checkmark.circle.fill"
+        case .error: "exclamationmark.triangle.fill"
+        case .uploading: "arrow.triangle.2.circlepath"
+        case .idle: "doc.badge.plus"
         }
     }
 
     private var uploadAreaIconColor: Color {
         switch viewModel.status {
-        case .ready, .success:
-            .green
-        case .error:
-            .red
-        case .uploading:
-            .ragSecondary
-        case .idle:
-            .ragPrimary
+        case .ready, .success: .green
+        case .error: .red
+        case .uploading: .ragSecondary
+        case .idle: .ragPrimary
         }
     }
 }
 
+// MARK: - Upload Progress Ring
 private struct UploadProgressRing: View {
     let progress: Double
 
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.primary.opacity(0.12), lineWidth: 6)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 5)
 
             Circle()
                 .trim(from: 0, to: progress)
@@ -272,16 +262,16 @@ private struct UploadProgressRing: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    style: StrokeStyle(lineWidth: 5, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.smooth(duration: 0.25), value: progress)
+                .animation(.smooth(duration: 0.2), value: progress)
 
             Text("\(Int(progress * 100))")
-                .font(.caption2.weight(.bold))
+                .font(.system(size: 10, weight: .bold))
                 .monospacedDigit()
         }
-        .frame(width: 46, height: 46)
+        .frame(width: 40, height: 40)
     }
 }
 
@@ -289,9 +279,9 @@ private struct UploadSheetBackground: View {
     var body: some View {
         LinearGradient(
             colors: [
-                Color.ragPrimary.opacity(0.12),
+                Color.ragPrimary.opacity(0.1),
                 Color.clear,
-                Color.ragSecondary.opacity(0.1)
+                Color.ragSecondary.opacity(0.06)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing

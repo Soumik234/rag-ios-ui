@@ -6,6 +6,7 @@ enum NetworkError: LocalizedError {
     case serverMessage(String)
     case decodingFailed(String?)
     case emptyData
+    case timedOut
 
     var errorDescription: String? {
         switch self {
@@ -25,8 +26,16 @@ enum NetworkError: LocalizedError {
             }
         case .emptyData:
             "No response data was received."
+        case .timedOut:
+            "The upload timed out before the backend finished processing. Try again after the server wakes up, or use a smaller PDF."
         }
     }
+}
+
+enum ChatStreamEvent: Equatable {
+    case token(String)
+    case sources([String])
+    case done
 }
 
 final class NetworkService: @unchecked Sendable {
@@ -39,8 +48,8 @@ final class NetworkService: @unchecked Sendable {
         self.baseURL = baseURL
 
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = APIConstants.timeout
-        configuration.timeoutIntervalForResource = APIConstants.timeout
+        configuration.timeoutIntervalForRequest = APIConstants.requestTimeout
+        configuration.timeoutIntervalForResource = APIConstants.uploadTimeout
         session = URLSession(configuration: configuration)
     }
 
@@ -48,10 +57,19 @@ final class NetworkService: @unchecked Sendable {
         let url = baseURL.appendingPathComponent(APIConstants.chatPath)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = APIConstants.requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(ChatRequest(question: question))
 
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw Self.mapNetworkError(error)
+        }
+
         try validate(response: response, data: data)
 
         guard !data.isEmpty else {
@@ -65,6 +83,45 @@ final class NetworkService: @unchecked Sendable {
         }
     }
 
+    func streamChat(question: String) throws -> AsyncThrowingStream<ChatStreamEvent, Error> {
+        let url = baseURL.appendingPathComponent(APIConstants.chatStreamPath)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = APIConstants.requestTimeout
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(ChatRequest(question: question))
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let (bytes, response) = try await session.bytes(for: request)
+                    try validate(response: response)
+
+                    for try await line in bytes.lines {
+                        guard let event = Self.parseStreamLine(line) else {
+                            continue
+                        }
+
+                        continuation.yield(event)
+
+                        if event == .done {
+                            break
+                        }
+                    }
+
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: Self.mapNetworkError(error))
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
     func uploadDocument(fileURL: URL, progress: @MainActor @escaping (Double) -> Void) async throws -> UploadResponse {
         let boundary = "Boundary-\(UUID().uuidString)"
         let filename = fileURL.lastPathComponent
@@ -74,6 +131,7 @@ final class NetworkService: @unchecked Sendable {
         let url = baseURL.appendingPathComponent(APIConstants.ingestPath)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = APIConstants.uploadTimeout
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
 
@@ -91,7 +149,15 @@ final class NetworkService: @unchecked Sendable {
             progressTask.cancel()
         }
 
-        let (data, response) = try await session.upload(for: request, from: body)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await session.upload(for: request, from: body)
+        } catch {
+            throw Self.mapNetworkError(error)
+        }
+
         try validate(response: response, data: data)
         progress(1)
 
@@ -132,6 +198,111 @@ final class NetworkService: @unchecked Sendable {
 
     private static func responseText(from data: Data) -> String? {
         String(data: data, encoding: .utf8)
+    }
+
+    private static func mapNetworkError(_ error: Error) -> Error {
+        if let urlError = error as? URLError, urlError.code == .timedOut {
+            return NetworkError.timedOut
+        }
+
+        return error
+    }
+
+    private static func parseStreamLine(_ line: String) -> ChatStreamEvent? {
+        let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLine.isEmpty else {
+            return nil
+        }
+
+        let payload: String
+        if trimmedLine.hasPrefix("data:") {
+            payload = String(trimmedLine.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if trimmedLine.hasPrefix("event:") || trimmedLine.hasPrefix("id:") || trimmedLine.hasPrefix("retry:") {
+            return nil
+        } else {
+            payload = trimmedLine
+        }
+
+        guard !payload.isEmpty else {
+            return nil
+        }
+
+        if payload == "[DONE]" || payload.lowercased() == "done" {
+            return .done
+        }
+
+        guard let data = payload.data(using: .utf8) else {
+            return .token(payload)
+        }
+
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .token(payload)
+        }
+
+        if let sources = parseSources(from: object["sources"]) {
+            return .sources(sources)
+        }
+
+        if let token = parseToken(from: object), !token.isEmpty {
+            return .token(token)
+        }
+
+        if let isDone = object["done"] as? Bool, isDone {
+            return .done
+        }
+
+        return nil
+    }
+
+    private static func parseToken(from object: [String: Any]) -> String? {
+        for key in ["token", "content", "delta", "text", "answer", "response", "message"] {
+            if let value = object[key] as? String {
+                return value
+            }
+        }
+
+        if
+            let choices = object["choices"] as? [[String: Any]],
+            let firstChoice = choices.first,
+            let delta = firstChoice["delta"] as? [String: Any],
+            let content = delta["content"] as? String
+        {
+            return content
+        }
+
+        return nil
+    }
+
+    private static func parseSources(from value: Any?) -> [String]? {
+        if let sources = value as? [String] {
+            return sources
+        }
+
+        guard let sourceObjects = value as? [[String: Any]] else {
+            return nil
+        }
+
+        return sourceObjects.map { object in
+            let rawSource = object["source"] as? String
+            let filename = rawSource?.split(separator: "/").last.map(String.init) ?? "Source"
+            let pageLabel = object["page_label"] as? String
+            let page = object["page"] as? Int
+            let totalPages = object["total_pages"] as? Int
+
+            var details = [filename]
+
+            if let pageLabel {
+                details.append("page \(pageLabel)")
+            } else if let page {
+                details.append("page \(page + 1)")
+            }
+
+            if let totalPages {
+                details.append("\(totalPages) total")
+            }
+
+            return details.joined(separator: " · ")
+        }
     }
 
     private func makeMultipartBody(fileData: Data, filename: String, boundary: String) -> Data {

@@ -11,7 +11,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
                     SettingsCard(title: "Conversation", systemImage: "text.bubble") {
                         Button(role: .destructive) {
                             chatViewModel.clearHistory()
@@ -28,12 +28,12 @@ struct SettingsView: View {
                     }
 
                     SettingsCard(title: "Backend", systemImage: "server.rack") {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text(viewModel.backendURL)
-                                .font(.body)
+                                .font(.subheadline)
                                 .textSelection(.enabled)
                             Text("Change this in APIConstants.swift.")
-                                .font(.caption)
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -41,7 +41,7 @@ struct SettingsView: View {
                     SettingsCard(title: "About", systemImage: "info.circle") {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Version \(viewModel.appVersion)")
-                                .font(.body)
+                                .font(.subheadline)
                             Button {
                                 if let url = URL(string: "https://developer.apple.com/design/human-interface-guidelines/") {
                                     openURL(url)
@@ -58,9 +58,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
+                    Button("Done") { dismiss() }
                 }
             }
         }
@@ -74,15 +72,14 @@ private struct SettingsCard<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Label(title, systemImage: systemImage)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
 
             content
-                .font(.body)
         }
-        .padding(16)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: 16, material: .regular)
     }
@@ -92,9 +89,9 @@ private struct AppSettingsBackground: View {
     var body: some View {
         LinearGradient(
             colors: [
-                Color.ragPrimary.opacity(0.16),
+                Color.ragPrimary.opacity(0.12),
                 Color(.systemBackground),
-                Color.ragSecondary.opacity(0.1)
+                Color.ragSecondary.opacity(0.08)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing

@@ -30,14 +30,7 @@ final class ChatViewModel: ObservableObject {
         messages.append(Message(content: question, sender: .user))
 
         do {
-            let response = try await networkService.sendChat(question: question)
-            messages.append(
-                Message(
-                    content: response.answer,
-                    sender: .assistant,
-                    sources: response.sources ?? []
-                )
-            )
+            try await streamMessage(question: question)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -61,5 +54,101 @@ final class ChatViewModel: ObservableObject {
                 sender: .assistant
             )
         )
+    }
+
+    private func streamMessage(question: String) async throws {
+        let assistantMessage = Message(content: "", sender: .assistant)
+        messages.append(assistantMessage)
+
+        var streamedContent = ""
+        var streamedSources: [String] = []
+        var didReceiveStreamContent = false
+
+        do {
+            let stream = try networkService.streamChat(question: question)
+
+            for try await event in stream {
+                switch event {
+                case .token(let token):
+                    didReceiveStreamContent = true
+                    streamedContent += token
+                    updateMessage(
+                        id: assistantMessage.id,
+                        content: streamedContent,
+                        sources: streamedSources
+                    )
+                case .sources(let sources):
+                    streamedSources = sources
+                    updateMessage(
+                        id: assistantMessage.id,
+                        content: streamedContent,
+                        sources: streamedSources
+                    )
+                case .done:
+                    logResponse(
+                        question: question,
+                        answer: streamedContent,
+                        sources: streamedSources,
+                        transport: "stream"
+                    )
+                    return
+                }
+            }
+
+            if !streamedContent.isEmpty || !streamedSources.isEmpty {
+                logResponse(
+                    question: question,
+                    answer: streamedContent,
+                    sources: streamedSources,
+                    transport: "stream"
+                )
+                return
+            }
+        } catch {
+            if didReceiveStreamContent {
+                throw error
+            }
+        }
+
+        messages.removeAll { $0.id == assistantMessage.id }
+        let response = try await networkService.sendChat(question: question)
+        logResponse(
+            question: question,
+            answer: response.answer,
+            sources: response.sources ?? [],
+            transport: "fallback"
+        )
+        messages.append(
+            Message(
+                content: response.answer,
+                sender: .assistant,
+                sources: response.sources ?? []
+            )
+        )
+    }
+
+    private func updateMessage(id: UUID, content: String, sources: [String]) {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let existingMessage = messages[index]
+        messages[index] = Message(
+            id: existingMessage.id,
+            content: content,
+            sender: existingMessage.sender,
+            timestamp: existingMessage.timestamp,
+            sources: sources
+        )
+    }
+
+    private func logResponse(question: String, answer: String, sources: [String], transport: String) {
+        print("""
+        [ChatResponse][\(transport)]
+        Question: \(question)
+        Answer:
+        \(answer)
+        Sources: \(sources)
+        """)
     }
 }
