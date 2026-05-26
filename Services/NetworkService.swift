@@ -209,25 +209,25 @@ final class NetworkService: @unchecked Sendable {
     }
 
     private static func parseStreamLine(_ line: String) -> ChatStreamEvent? {
-        let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedLine.isEmpty else {
+        guard !line.isEmpty else {
             return nil
         }
 
         let payload: String
-        if trimmedLine.hasPrefix("data:") {
-            payload = String(trimmedLine.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if trimmedLine.hasPrefix("event:") || trimmedLine.hasPrefix("id:") || trimmedLine.hasPrefix("retry:") {
+        if line.hasPrefix("data:") {
+            payload = sseDataPayload(from: line)
+        } else if line.hasPrefix("event:") || line.hasPrefix("id:") || line.hasPrefix("retry:") || line.hasPrefix(":") {
             return nil
         } else {
-            payload = trimmedLine
+            payload = line
         }
 
         guard !payload.isEmpty else {
             return nil
         }
 
-        if payload == "[DONE]" || payload.lowercased() == "done" {
+        let controlPayload = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        if controlPayload == "[DONE]" || controlPayload.lowercased() == "done" {
             return .done
         }
 
@@ -252,6 +252,16 @@ final class NetworkService: @unchecked Sendable {
         }
 
         return nil
+    }
+
+    private static func sseDataPayload(from line: String) -> String {
+        var payload = String(line.dropFirst(5))
+
+        if payload.first == " " {
+            payload.removeFirst()
+        }
+
+        return payload
     }
 
     private static func parseToken(from object: [String: Any]) -> String? {

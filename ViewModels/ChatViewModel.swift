@@ -5,7 +5,7 @@ import Combine
 final class ChatViewModel: ObservableObject {
     @Published var messages: [Message] = [
         Message(
-            content: "Upload a PDF, then ask a question about its contents.",
+            content: "Upload a PDF and ask anything about it. I can summarize sections, find key details, compare ideas, or answer specific questions from the document.",
             sender: .assistant
         )
     ]

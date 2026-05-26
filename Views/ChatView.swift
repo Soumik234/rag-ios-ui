@@ -46,13 +46,10 @@ struct ChatView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 12)
-                .background(
-                    LinearGradient(
-                        colors: [.clear, Color(.systemBackground).opacity(0.15), Color(.systemBackground).opacity(0.4)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) {
+                    Divider()
+                }
         }
         .alert("Chat Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
@@ -156,7 +153,7 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .padding(.bottom, 104)
+                .padding(.bottom, 16)
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {

@@ -27,17 +27,6 @@ struct SettingsView: View {
                         }
                     }
 
-                    SettingsCard(title: "Backend", systemImage: "server.rack") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(viewModel.backendURL)
-                                .font(.subheadline)
-                                .textSelection(.enabled)
-                            Text("Change this in APIConstants.swift.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
                     SettingsCard(title: "About", systemImage: "info.circle") {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Version \(viewModel.appVersion)")
@@ -47,7 +36,6 @@ struct SettingsView: View {
                                     openURL(url)
                                 }
                             } label: {
-                                Label("Human Interface Guidelines", systemImage: "safari")
                             }
                         }
                     }
